@@ -192,7 +192,6 @@ bot.onText(/\/getList/, (msg) => {
       }
     );
 
-    fs.unlinkSync('./exportedData/studentsList.json');
     // bot.sendMessage(userId, 'Recieved');
   } catch (error) {
     console.log(error.message);
@@ -204,7 +203,7 @@ bot.onText(/\/clearData/, (msg) => {
   const studentsListPath = './exportedData/studentsList.json';
   fs.writeFileSync(studentsListPath, JSON.stringify([], null, 2), 'utf-8');
   const chatId = msg.chat.id;
-  fs.unlinkSync('./exportedData/studentsList.json');
+  // fs.unlinkSync('./exportedData/studentsList.json');
   bot.sendMessage(chatId, 'Data list cleared successfully');
 });
 

@@ -211,3 +211,20 @@ bot.onText(/\/clearData/, (msg) => {
 bot.on('polling_error', (error) => {
   console.error('Polling error:', error);
 });
+
+bot.onText(/\/createList/, (msg) => {
+  const chatId = msg.chat.id;
+  try {
+    fs.writeFileSync(
+      './exportedData/studentsList.json',
+      JSON.stringify([], null, 2),
+      'utf-8'
+    );
+
+    bot.sendMessage(chatId, 'File created successfully!');
+    console.log('File created');
+  } catch (error) {
+    console.error('ERROR WHILE CREATING FILE', error);
+    bot.sendMessage(chatId, `Error while creating file\n ${error.message}`);
+  }
+});

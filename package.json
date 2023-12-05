@@ -4,7 +4,7 @@
   "description": "a bot to resgister resh students",
   "main": "index.js",
   "scripts": {
-    "start" : "node --trace-deprecation index.js ",
+    "start": "node --trace-deprecation index.js ",
     "dev": "nodemon index.js --ignore studentsList.json --ignore exportedData --ignore data",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,6 +13,7 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "json-as-xlsx": "^2.5.6",
+    "mongoose": "^8.0.2",
     "node-telegram-bot-api": "^0.64.0",
     "xlsx": "^0.18.5"
   }

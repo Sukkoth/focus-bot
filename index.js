@@ -1,7 +1,10 @@
 const TelegramBot = require('node-telegram-bot-api');
+const connectToDatabase = require('./config/connectDb');
 const fs = require('fs');
 const xlsx = require('xlsx');
 require('dotenv').config();
+
+connectToDatabase();
 
 const apiKey = process.env.API_KEY;
 
@@ -10,6 +13,7 @@ const bot = new TelegramBot(apiKey, {
 });
 
 const http = require('http');
+const Student = require('./models/Student');
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
@@ -137,42 +141,40 @@ bot.on('callback_query', (callbackQuery) => {
   Gosa Tajaajilaa: ${userData[userId].gift}
   Gosa Barnootaa: ${userData[userId].field}`;
 
-  // Write the collected data to studentsList.json
-  const studentsListPath = './exportedData/studentsList.json';
-  const studentsList = JSON.parse(
-    fs.readFileSync(studentsListPath, 'utf-8') || '[]'
-  );
-  studentsList.push(userData[userId]);
-  fs.writeFileSync(
-    studentsListPath,
-    JSON.stringify(studentsList, null, 2),
-    'utf-8'
-  );
+  createStudent(userData[userId])
+    .then(() => {
+      bot.sendMessage(userId, collectedDataMessage).then(() => {
+        bot.sendMessage(
+          userId,
+          ` ℹ️💁 Odeeffannoo barbaachisaa argachuu yoo barbaadde \nkaraa lakkoofsa bilbila 📞 armaan gadii \nnu qunnamuu dandeessa! 🙂
+      0934217338
+      0973704069
+      0924995272`
+        );
+      });
 
-  bot.sendMessage(userId, collectedDataMessage).then(() => {
-    bot.sendMessage(
-      userId,
-      ` ℹ️💁 Odeeffannoo barbaachisaa argachuu yoo barbaadde \nkaraa lakkoofsa bilbila 📞 armaan gadii \nnu qunnamuu dandeessa! 🙂
-    0934217338
-    0973704069
-    0924995272`
-    );
-  });
+      //notify admins
+      notifyAdminsOnUserRegistered(userData[userId])
+        .then(() => console.log('NOTIFICATION SENT 🔔🔔'))
+        .catch((error) => {
+          console.log(
+            `⚠️ Error on notification ${
+              error?.message || 'Could not send notifications to admins 🥴'
+            } `
+          );
+          bot.sendMessage(
+            5230220534,
+            'Could not send notifications to admins 🥴'
+          );
+        });
 
-  //notify admins
-  notifyAdminsOnUserRegistered(userData[userId])
-    .then(() => console.log('NOTIFICATION SENT 🔔🔔'))
+      // Remove user data after completing the registration
+      delete userData[userId];
+    })
     .catch((error) => {
-      console.log(
-        `⚠️ Error on notification ${
-          error?.message || 'Could not send notifications to admins 🥴'
-        } `
-      );
-      bot.sendMessage(5230220534, 'Could not send notifications to admins 🥴');
+      console.log('REGISTER ERROR', error);
+      bot.sendMessage(userId, 'Could notregister student 🥴');
     });
-
-  // Remove user data after completing the registration
-  delete userData[userId];
 });
 
 /**
@@ -188,42 +190,40 @@ bot.onText(/\/getList/, (msg) => {
     );
     return;
   }
-  try {
-    const jsonData = JSON.parse(
-      fs.readFileSync('./exportedData/studentsList.json')
-    );
 
-    const ws = xlsx.utils.json_to_sheet(jsonData);
-    ws['!cols'] = [
-      { wch: 20 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 30 },
-      { wch: 15 },
-    ];
-    // Create a workbook and add the worksheet
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, 'Sheet 1');
+  getStudents()
+    .then((data) => {
+      const ws = xlsx.utils.json_to_sheet(data);
+      ws['!cols'] = [
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 30 },
+        { wch: 15 },
+      ];
+      // Create a workbook and add the worksheet
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, 'Sheet 1');
 
-    // Write the Excel workbook to a file
-    const filePath = `./exportedData/Students List.xlsx`;
-    xlsx.writeFile(wb, filePath);
-    bot.sendDocument(
-      chatId,
-      filePath,
-      {
-        caption: 'Here is the list of students in Excel format.',
-      },
-      {
-        contentType: 'application/octet-stream',
-      }
-    );
-    // bot.sendMessage(chatId, 'Recieved');
-  } catch (error) {
-    console.log(error.message);
-  }
+      // Write the Excel workbook to a file
+      const filePath = `./exportedData/Students List.xlsx`;
+      xlsx.writeFile(wb, filePath);
+      bot.sendDocument(
+        chatId,
+        filePath,
+        {
+          caption: 'Here is the list of students in Excel format.',
+        },
+        {
+          contentType: 'application/octet-stream',
+        }
+      );
+    })
+    .catch((error) => {
+      bot.sendMessage(chatId, 'Could not fetch Students');
+    });
 });
 
 /**
@@ -243,55 +243,6 @@ bot.onText(/\/clearData/, (msg) => {
  */
 bot.on('polling_error', (error) => {
   console.error('🔔🔔 Polling error:', error);
-});
-
-/**
- * @desc create studentsList.json file, incase of unknown error
- */
-bot.onText(/\/createList/, (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    fs.writeFileSync(
-      './exportedData/studentsList.json',
-      JSON.stringify([], null, 2),
-      'utf-8'
-    );
-
-    bot.sendMessage(chatId, 'File created successfully!');
-    console.log('File created');
-  } catch (error) {
-    console.error('ERROR WHILE CREATING FILE', error);
-    bot.sendMessage(chatId, `Error while creating file\n ${error.message}`);
-  }
-});
-
-/**
- * @desc get json file of students list
- */
-bot.onText(/\/getJson/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  if (userId !== 5230220534) {
-    return bot.sendMessage(chatId, '⚠️⚠️Unauthorized request');
-  } else {
-    bot
-      .sendDocument(
-        chatId,
-        './exportedData/studentsList.json',
-        {
-          caption: 'Backup JSON format.',
-        },
-        {
-          contentType: 'application/octet-stream',
-        }
-      )
-      .catch((error) =>
-        bot.sendMessage(
-          chatId,
-          `⚠️${error?.message}` || '⚠️ Error while sending the JSON file'
-        )
-      );
-  }
 });
 
 /**
@@ -452,4 +403,26 @@ function notifyAdminsOnUserRegistered(studentInfo) {
       reject(error); // Reject the promise if there is an error
     }
   });
+}
+
+async function createStudent(studentInfo) {
+  const student = await Student.create(studentInfo);
+
+  if (student) {
+    return student;
+  } else {
+    throw new Error('Could not create student');
+  }
+}
+
+async function getStudents() {
+  try {
+    const students = await Student.find({})
+      .select('-_id name phone city church dormNumber gift field date')
+      .lean();
+
+    return students;
+  } catch (error) {
+    throw new Error(error?.message);
+  }
 }

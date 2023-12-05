@@ -4,8 +4,8 @@
   "description": "a bot to resgister resh students",
   "main": "index.js",
   "scripts": {
-    "start" : "node index.js",
-    "dev": "nodemon index.js --ignore studentsList.json --ignore exportedData",
+    "start" : "node --trace-deprecation index.js ",
+    "dev": "nodemon index.js --ignore studentsList.json --ignore exportedData --ignore data",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "sukkoth",

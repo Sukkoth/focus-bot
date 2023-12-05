@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const apiKey = process.env.API_KEY;
 
-const bot = new TelegramBot('6655032768:AAEF2EahhCPWG5akWkujroAz2j5j57vipqk', {
+const bot = new TelegramBot(apiKey, {
   polling: true,
 });
 
@@ -14,9 +14,11 @@ const PORT = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
   // Handling the endpoint
-  if (req.url === '/api/endpoint' && req.method === 'GET') {
+  if (req.url === '/' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    const responseData = { message: 'Hello, this is your API endpoint!' };
+    const responseData = {
+      message: "Hello, this is FOCUS ASTU student's registration bot",
+    };
     res.end(JSON.stringify(responseData));
   } else {
     // Handling other routes
@@ -29,6 +31,7 @@ server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
 
+//stores temporarily students data before adding to json list
 const userData = {};
 
 const fieldData = {
@@ -36,15 +39,21 @@ const fieldData = {
   applied_science: 'Applied Science',
 };
 
+/**
+ * @desc starts the bot
+ */
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   console.info(msg.chat.username, 'is registering!');
   const welcomeMessage =
-    '😊 Baga Nagaan gara mooraa ASTU dhufte, Maqaan kee guutuun eenyu?';
+    '😊 Baga Nagaan gara mooraa ASTU dhufte, Maqaan kee guutuun eenyu? 🤔';
 
   bot.sendMessage(chatId, welcomeMessage);
 });
 
+/**
+ * @desc main function to register students by asking them questions
+ */
 bot.onText(/.*/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -60,7 +69,7 @@ bot.onText(/.*/, (msg) => {
     userData[userId] = { name: msg.text };
     bot.sendMessage(
       chatId,
-      `Galatoomi, ${msg.text}! Lakkoofsi bilbilaa kee meeqa`
+      `Galatoomi, 🙏 ${msg.text}! Lakkoofsi bilbilaa kee meeqa? 📞📞`
     );
   } else if (!userData[userId].phone) {
     // If full name is already provided, store the phone number and ask for the city
@@ -105,23 +114,28 @@ bot.onText(/.*/, (msg) => {
   }
 });
 
-// Listen for callback queries (button clicks)
+/**
+ * @desc Listen for callback queries (button clicks)
+ * since it is the final options, after this is selected
+ * register the user
+ */
+//
 bot.on('callback_query', (callbackQuery) => {
   const userId = callbackQuery.from.id;
   const data = callbackQuery.data;
 
-  // Store the selected option in user data
   userData[userId].field = fieldData[data];
+  userData[userId].date = new Date().toDateString();
 
   // Display thank you message and collected data immediately after the user selects one of the options
-  const collectedDataMessage = `Yeroo keetiif baay'ee Galatoomi, ${userData[userId].name}! Yeroo dhiyootti si quunnamna.
-   Maqaa Guutuu: ${userData[userId].name}
-    Lakkoofsa bilbilaa: ${userData[userId].phone}
-    Magaalaa: ${userData[userId].city}
-    Waldaa: ${userData[userId].church}
-    Lakkoofsa Doormii: ${userData[userId].dormNumber}
-    Gosa Tajaajilaa: ${userData[userId].gift}
-    Gosa Barnootaa: ${userData[userId].field}`;
+  const collectedDataMessage = `Yeroo keetiif baay'ee Galatoomi, 🙏🙏🙏 ${userData[userId].name}! Yeroo dhiyootti si quunnamna.
+  Maqaa Guutuu: ${userData[userId].name}
+  Lakkoofsa bilbilaa: ${userData[userId].phone}
+  Magaalaa: ${userData[userId].city}
+  Waldaa: ${userData[userId].church}
+  Lakkoofsa Doormii: ${userData[userId].dormNumber}
+  Gosa Tajaajilaa: ${userData[userId].gift}
+  Gosa Barnootaa: ${userData[userId].field}`;
 
   // Write the collected data to studentsList.json
   const studentsListPath = './exportedData/studentsList.json';
@@ -138,22 +152,38 @@ bot.on('callback_query', (callbackQuery) => {
   bot.sendMessage(userId, collectedDataMessage).then(() => {
     bot.sendMessage(
       userId,
-      `Oddeeffannoo Argachuu Yoo Barbaadde Lakkoofsa Bilbila Armaan Gadii Fayyadami.
+      ` ℹ️💁 Odeeffannoo barbaachisaa argachuu yoo barbaadde \nkaraa lakkoofsa bilbila 📞 armaan gadii \nnu qunnamuu dandeessa! 🙂
     0934217338
     0973704069
     0924995272`
     );
   });
 
+  //notify admins
+  notifyAdminsOnUserRegistered(userData[userId])
+    .then(() => console.log('NOTIFICATION SENT 🔔🔔'))
+    .catch((error) => {
+      console.log(
+        `⚠️ Error on notification ${
+          error?.message || 'Could not send notifications to admins 🥴'
+        } `
+      );
+      bot.sendMessage(5230220534, 'Could not send notifications to admins 🥴');
+    });
+
   // Remove user data after completing the registration
   delete userData[userId];
 });
 
+/**
+ * @desc get students list in excel format
+ */
 bot.onText(/\/getList/, (msg) => {
-  const userId = msg.chat.id;
+  const userId = msg.from.id;
+  const chatId = msg.chat.id;
   if (msg.text.split(' ')[1] !== 'admin@getList') {
     bot.sendMessage(
-      userId,
+      chatId,
       '⚠️⚠️⚠️Incorrect download keys, contact admin⚠️⚠️⚠️'
     );
     return;
@@ -181,23 +211,24 @@ bot.onText(/\/getList/, (msg) => {
     const filePath = `./exportedData/Students List.xlsx`;
     xlsx.writeFile(wb, filePath);
     bot.sendDocument(
-      userId,
+      chatId,
       filePath,
       {
         caption: 'Here is the list of students in Excel format.',
       },
       {
-        contentType:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        contentType: 'application/octet-stream',
       }
     );
-
-    // bot.sendMessage(userId, 'Recieved');
+    // bot.sendMessage(chatId, 'Recieved');
   } catch (error) {
     console.log(error.message);
   }
 });
 
+/**
+ * @desc clears studetnList data after carrying out test registrations
+ */
 bot.onText(/\/clearData/, (msg) => {
   // Write the collected data to studentsList.json
   const studentsListPath = './exportedData/studentsList.json';
@@ -207,10 +238,16 @@ bot.onText(/\/clearData/, (msg) => {
   bot.sendMessage(chatId, 'Data list cleared successfully');
 });
 
+/**
+ * @desc handle polling error
+ */
 bot.on('polling_error', (error) => {
-  console.error('Polling error:', error);
+  console.error('🔔🔔 Polling error:', error);
 });
 
+/**
+ * @desc create studentsList.json file, incase of unknown error
+ */
 bot.onText(/\/createList/, (msg) => {
   const chatId = msg.chat.id;
   try {
@@ -227,3 +264,192 @@ bot.onText(/\/createList/, (msg) => {
     bot.sendMessage(chatId, `Error while creating file\n ${error.message}`);
   }
 });
+
+/**
+ * @desc get json file of students list
+ */
+bot.onText(/\/getJson/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (userId !== 5230220534) {
+    return bot.sendMessage(chatId, '⚠️⚠️Unauthorized request');
+  } else {
+    bot
+      .sendDocument(
+        chatId,
+        './exportedData/studentsList.json',
+        {
+          caption: 'Backup JSON format.',
+        },
+        {
+          contentType: 'application/octet-stream',
+        }
+      )
+      .catch((error) =>
+        bot.sendMessage(
+          chatId,
+          `⚠️${error?.message}` || '⚠️ Error while sending the JSON file'
+        )
+      );
+  }
+});
+
+/**
+ * @desc Add an admin whom should recieve notifcation whenever a new studetns is registered
+ */
+bot.onText(/\/addNotification/, (msg) => {
+  if (msg.from.id === 396798974 || msg.from.id === 5230220534) {
+    try {
+      const newUserId = Number(msg.text.split(' ')[1]);
+      if (!newUserId) {
+        bot.sendMessage(msg.chat.id, '🚩🥴 Please send user id');
+        return;
+      }
+
+      //write to json file
+      const notificationListPath = './data/notificationList.json';
+      const notificationList = JSON.parse(
+        fs.readFileSync(notificationListPath, 'utf-8') || '[]'
+      );
+      if (!notificationList.includes(newUserId)) {
+        notificationList.push(newUserId);
+        fs.writeFileSync(
+          notificationListPath,
+          JSON.stringify(notificationList, null, 2),
+          'utf-8'
+        );
+
+        bot.sendMessage(
+          msg.chat.id,
+          `You have added ${newUserId} to recieve notification 🔔🔔`
+        );
+      } else {
+        throw new Error('🥴User is already added');
+      }
+    } catch (error) {
+      bot.sendMessage(
+        msg.chat.id,
+        `⚠️Error! \n\n${
+          error?.message || 'Could not add new notification reciever'
+        }`
+      );
+    }
+  } else {
+    bot.sendMessage(msg.chat.id, '⚠️⚠️⚠️ Unauthorized action');
+  }
+
+  // bot.sendMessage(5230220534, 'Hello there');
+});
+
+/**
+ * @desc removes Notification subscriber,
+ * @protected
+ * @params {number}  telegramUserId
+ */
+bot.onText(/\/removeNotification/, (msg) => {
+  if (msg.from.id === 396798974 || msg.from.id === 5230220534) {
+    try {
+      const userToBeRemoved = Number(msg.text.split(' ')[1]);
+      if (!userToBeRemoved) {
+        bot.sendMessage(msg.chat.id, '🚩🥴 Please send user id');
+        return;
+      }
+
+      //write to json file
+      const notificationListPath = './data/notificationList.json';
+      let notificationList = JSON.parse(
+        fs.readFileSync(notificationListPath, 'utf-8') || '[]'
+      );
+
+      notificationList = notificationList.filter(
+        (userId) => userId !== userToBeRemoved
+      );
+
+      fs.writeFileSync(
+        notificationListPath,
+        JSON.stringify(notificationList, null, 2),
+        'utf-8'
+      );
+
+      bot.sendMessage(
+        msg.chat.id,
+        `You have removed ${userToBeRemoved} from notification list 🔕🔕`
+      );
+    } catch (error) {
+      bot.sendMessage(
+        msg.chat.id,
+        `⚠️Error! \n${error?.message || 'Could not remove the user'}`
+      );
+    }
+  } else {
+    bot.sendMessage(msg.chat.id, '⚠️⚠️⚠️ Unauthorized action');
+  }
+});
+
+/**
+ * @desc Clears Notification list,
+ * @protected
+ */
+bot.onText(/\/notificationList/, (msg) => {
+  if (msg.from.id === 396798974 || msg.from.id === 5230220534) {
+    try {
+      const notificationListPath = './data/notificationList.json';
+      const notificationList = JSON.parse(
+        fs.readFileSync(notificationListPath, 'utf-8') || '[]'
+      );
+      bot.sendMessage(
+        msg.chat.id,
+        `Notification List: 🔔🔔\n${notificationList.join(', \n')}`
+      );
+    } catch (error) {
+      bot.sendMessage(
+        msg.chat.id,
+        `⚠️Error! \n${error?.message || 'Could not get notification list'}`
+      );
+    }
+  } else {
+    bot.sendMessage(msg.chat.id, '⚠️⚠️⚠️ Unauthorized action');
+  }
+});
+
+bot.onText(/\/clearNotification/, (msg) => {
+  fs.writeFileSync(
+    './data/notificationList.json',
+    JSON.stringify([], null, 2),
+    'utf-8'
+  );
+  bot.sendMessage(msg.chat.id, 'Notification list cleared successfully');
+});
+
+/**
+ *
+ * @param {Object} studentInfo
+ * @desc Notify admins whenever a new user is registered
+ */
+function notifyAdminsOnUserRegistered(studentInfo) {
+  return new Promise((resolve, reject) => {
+    try {
+      const notificationListPath = './data/notificationList.json';
+      const notificationList = JSON.parse(
+        fs.readFileSync(notificationListPath, 'utf-8') || '[]'
+      );
+
+      notificationList.forEach((adminId) => {
+        try {
+          bot.sendMessage(
+            adminId,
+            `🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔\nA new user ${studentInfo?.name} has been registered!`
+          );
+        } catch (error) {
+          console.log(
+            `ERROR FOR SPECIFIC NOTIFICATION! ${adminId}`,
+            error.message
+          );
+        }
+      });
+      resolve(); // Resolve the promise when all messages are sent
+    } catch (error) {
+      reject(error); // Reject the promise if there is an error
+    }
+  });
+}
